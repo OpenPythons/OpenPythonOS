@@ -1,7 +1,10 @@
+import uos
+from ucollections import namedtuple
 from uos import *
 
-# import ocpath as path
-from ocpath import curdir, pardir, sep, extsep, altsep, pathsep, linesep, defpath, devnull
+import ocpath as path
+from ocpath import curdir, pardir, sep, extsep, altsep, pathsep, defpath, devnull
+from process import current_process, walk_process
 
 __all__ = [
     # uos.*
@@ -10,42 +13,90 @@ __all__ = [
     # ocpath
     # "path",
     # ocpath.*
-    "curdir", "pardir", "sep", "extsep", "altsep", "pathsep", "linesep", "defpath", "devnull",
+    "curdir", "pardir", "sep", "extsep", "altsep", "pathsep", "defpath", "devnull",
     # os
-    "name", "Environ", "environ", "getenv"
+    "name", "Environ", "environ", "getenv", "path"
 ]
 
+stat_result = namedtuple("os.stat_result", (
+    "st_mode", "st_ino", "st_dev", "st_nlink",
+    "st_uid", "st_gid",
+    "st_size",
+    "st_atime", "st_mtime", "st_ctime"
+))
+
+vfs_result = namedtuple("os.vfs_result", (
+    "f_bsize", "f_frsize",
+    "f_blocks", "f_bfree",
+    "f_bavail", "f_files",
+    "f_ffree", "f_favail",
+    "f_flag",
+    "f_namemax",
+))
+
+
+def stat(p):
+    r = uos.stat(p)
+    return stat_result(*r)
+
+
+def vfsstat(p):
+    r = uos.statvfs(p)
+    return vfs_result(*r)
+
+
 name = "oc"
+linesep = '\n'
+
+
+def listdir(p=None):
+    return uos.listdir(getcwd() if p is None else path.join(getcwd(), p))
 
 
 class Environ:
-    def __init__(self, default):
-        self.data = default
-
     def __getitem__(self, item):
-        return self.data[item]
+        value = self.get(item)
+        if value is None:
+            raise KeyError(item)
+
+        return value
 
     def __setitem__(self, key, value):
-        self.data[key] = value
+        proc = current_process()
+        proc.environ[key] = value
 
     def __delitem__(self, key):
-        del self.data[key]
+        for proc in walk_process():
+            if key in proc.environ:
+                proc = current_process()
+                proc.environ[key] = None
+                break
 
     def __contains__(self, item):
-        return item in self.data
+        value = self.get(item)
+        return value is not None
 
-    def get(self, default=None):
-        return self.data.get(default)
+    def get(self, key, default=None):
+        for proc in walk_process():
+            if key in proc.environ:
+                return proc.environ[key]
+
+        return default
 
 
-environ = Environ({
-    "TMPDIR": "/tmp",
-    "PATH": defpath,
-    "PWD": "/",  # TODO: dynamic
-    "HOME": "/home",
-    "_": "<current program>"
-})
+environ = Environ()
 
 
 def getenv(name):
     return environ.get(name)
+
+
+def setup():
+    from process import init_process
+    proc = init_process()
+    proc.environ = {
+        "TMPDIR": "/tmp",
+        "PATH": defpath,
+        "HOME": "/home",
+        "_": "/init.py",
+    }
