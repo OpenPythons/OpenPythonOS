@@ -1,3 +1,0 @@
-import value
-
-value.setup()

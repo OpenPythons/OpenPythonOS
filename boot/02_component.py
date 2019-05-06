@@ -1,3 +1,0 @@
-import component
-
-component.setup()

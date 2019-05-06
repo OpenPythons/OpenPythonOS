@@ -1,11 +1,11 @@
 from uio import FileIO
 
-from component import Component, list
+from component import Component, components
 
 
 class FileSystem:
     def __init__(self, address):
-        self.fs = Component(address)
+        self.fs = Component(address, components()[address])
         self.address = address
         self.readonly = self.fs.isReadOnly()
         self.cwd = "/"
